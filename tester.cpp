@@ -17,7 +17,8 @@ int main(int argc, char** argv)
 
 	OpenCLBuilder::printDevices();
 
-	OpenCLBuilder cpu(DEVICE_TYPE::CPU, true);
+    OpenCLBuilder cpu(DEVICE_TYPE::CPU, true);
+
 
 	cl_kernel square_kernel = cpu.buildKernel("square.cl", "square");
         

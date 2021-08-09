@@ -43,20 +43,20 @@ public:
     OpenCLBuilder(DEVICE_TYPE type = DEVICE_TYPE::CPU, bool _profile = false) : profile {_profile} {
         int err;                            // error code returned from api calls
 
-        cl_uint platformCount;
-        cl_platform_id* platforms;
-        clGetPlatformIDs(0, NULL, &platformCount);
-        std::cerr << platformCount << std::endl;
 
-        platforms = (cl_platform_id*)malloc(sizeof(cl_platform_id) * platformCount);
-        clGetPlatformIDs(platformCount, platforms, NULL);
-
-        err = clGetDeviceIDs(platforms[2], CL_DEVICE_TYPE_ALL, 1, &device_id, NULL);
-        if (err != CL_SUCCESS)
-        {
-            printf("Error: Failed to create a device group!\n");
-       
+        if (type == DEVICE_TYPE::CPU) {
+            this->getDevice("CPU");
         }
+        else if (type == DEVICE_TYPE::GPU) {
+            this->getDevice("GeForce");
+        }
+        else if (type == DEVICE_TYPE::INTEL_GPU){
+            this->getDevice("UHD");
+        }
+        else {
+            throw "Unknown device";
+        }
+
 
         // Create a compute context 
         context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
@@ -144,16 +144,20 @@ public:
         program = clCreateProgramWithSource(context, 1,
             &source, &size, NULL);
            
+        std::cerr << device_id << std::endl;
+
         // Build the program executable
         //
-        err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+        err = clBuildProgram(program, 1,&device_id, NULL, NULL, NULL);
   
         size_t len;
         char buffer[2048];
 
-        printf("Error: Failed to build program executable!\n");
+
+
+        printf("Program build log:\n");
         clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, &len);
-        printf("%s\n", buffer);
+        std::cerr << buffer << std::endl;;
 
         if (err != CL_SUCCESS)
         {
@@ -171,6 +175,53 @@ public:
         }
         return kernel;
     }
+
+    void getDevice(std::string name) {
+        cl_uint platformCount;
+        cl_platform_id* platforms;
+        clGetPlatformIDs(0, NULL, &platformCount);
+
+        platforms = (cl_platform_id*)malloc(sizeof(cl_platform_id) * platformCount);
+        clGetPlatformIDs(platformCount, platforms, NULL);
+
+        char* value;
+        size_t valueSize;
+        cl_uint deviceCount;
+        cl_device_id* devices;
+        cl_uint maxComputeUnits;
+        bool found = false;
+        for (int i = 0; i < platformCount; i++) {
+
+            // get all devices
+            clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceCount);
+            devices = (cl_device_id*)malloc(sizeof(cl_device_id) * deviceCount);
+            clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 1, devices, NULL);
+
+            // for each device print critical attributes
+            for (int j = 0; j < deviceCount; j++) {
+
+                std::cerr << devices[j] << std::endl;
+
+                // print device name
+                clGetDeviceInfo(devices[j], CL_DEVICE_NAME, 0, NULL, &valueSize);
+                value = (char*)malloc(valueSize);
+                clGetDeviceInfo(devices[j], CL_DEVICE_NAME, valueSize, value, NULL);
+                printf("%d. Device: %s\n", i + 1, value);
+                std::string v = value;
+                if (v.find(name) != std::string::npos) {
+                    std::cerr << "yes" << std::endl;
+                    found = true;
+                    device_id = devices[j];
+                 }
+
+                free(value);
+            }
+        }
+        if (!found) {
+            throw "could not find device";
+        }
+    }
+
 
 	static void printDevices() {
         // Connect to a compute device
@@ -200,34 +251,34 @@ public:
                 clGetDeviceInfo(devices[j], CL_DEVICE_NAME, 0, NULL, &valueSize);
                 value = (char*)malloc(valueSize);
                 clGetDeviceInfo(devices[j], CL_DEVICE_NAME, valueSize, value, NULL);
-                printf("%d. Device: %s\n", j + 1, value);
+                printf("%d. Device: %s\n", i + 1, value);
                 free(value);
 
                 // print hardware device version
                 clGetDeviceInfo(devices[j], CL_DEVICE_VERSION, 0, NULL, &valueSize);
                 value = (char*)malloc(valueSize);
                 clGetDeviceInfo(devices[j], CL_DEVICE_VERSION, valueSize, value, NULL);
-                printf(" %d.%d Hardware version: %s\n", j + 1, 1, value);
+                printf(" %d.%d Hardware version: %s\n", i + 1, 1, value);
                 free(value);
 
                 // print software driver version
                 clGetDeviceInfo(devices[j], CL_DRIVER_VERSION, 0, NULL, &valueSize);
                 value = (char*)malloc(valueSize);
                 clGetDeviceInfo(devices[j], CL_DRIVER_VERSION, valueSize, value, NULL);
-                printf(" %d.%d Software version: %s\n", j + 1, 2, value);
+                printf(" %d.%d Software version: %s\n", i + 1, 2, value);
                 free(value);
 
                 // print c version supported by compiler for device
                 clGetDeviceInfo(devices[j], CL_DEVICE_OPENCL_C_VERSION, 0, NULL, &valueSize);
                 value = (char*)malloc(valueSize);
                 clGetDeviceInfo(devices[j], CL_DEVICE_OPENCL_C_VERSION, valueSize, value, NULL);
-                printf(" %d.%d OpenCL C version: %s\n", j + 1, 3, value);
+                printf(" %d.%d OpenCL C version: %s\n", i + 1, 3, value);
                 free(value);
 
                 // print parallel compute units
                 clGetDeviceInfo(devices[j], CL_DEVICE_MAX_COMPUTE_UNITS,
                     sizeof(maxComputeUnits), &maxComputeUnits, NULL);
-                printf(" %d.%d Parallel compute units: %d\n", j + 1, 4, maxComputeUnits);
+                printf(" %d.%d Parallel compute units: %d\n", i + 1, 4, maxComputeUnits);
 
             }
 
